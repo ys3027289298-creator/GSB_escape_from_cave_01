@@ -18,3 +18,23 @@ strongly recommend you start this project.
 So come join me in expanding this project and making it bigger and better.
 
 And as always suggestions and questions are always welcome. 
+
+## Save / Load
+
+The game autosaves to `savegame.json` after every action and restores the
+player (position, HP, gold, victory flag, inventory) plus already-claimed
+gold tiles on the next start. The save is deleted only when you die or win;
+quitting keeps your progress.
+
+Loading a save never crashes the game; broken data is recovered like this:
+
+* Save file missing, unreadable, or not valid JSON -> start a new game.
+* Missing player fields (x, y, hp, gold, victory, inventory) -> fall back
+  to the defaults a new player gets.
+* Unknown item names in the inventory -> skipped; known items still load.
+* Unknown extra fields -> ignored.
+* Saved position that is not a real tile on the map -> back to the start tile.
+
+Run the regression tests with:
+
+    python3 -m unittest discover -s tests -v

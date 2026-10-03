@@ -7,6 +7,7 @@ __author__ = "lakshaytalkstocomputer"
 import random
 import enemies
 import Characters
+import items
 
 
 class MapTile:
@@ -38,6 +39,10 @@ class BoringTile(MapTile):
 
 
 class VictoryTile(MapTile):
+    # Key items the player must be carrying before the exit counts
+    # as a victory. Names are matched against item.name.
+    required_items = ("Rock", "Dagger")
+
     def intro_text(self):
         return """
         You see a bright light in the distance...
@@ -48,7 +53,12 @@ class VictoryTile(MapTile):
         """
 
     def modify_player(self, player):
-        player.victory = True
+        owned = {item.name for item in player.inventory}
+        missing = [name for name in self.required_items if name not in owned]
+        if missing:
+            print("You still need {} to escape the cave!".format(", ".join(missing)))
+        else:
+            player.victory = True
 
 
 class EnemyTile(MapTile):
@@ -184,6 +194,10 @@ def parse_world_dsl():
     if not is_dsl_valid(world_dsl):
         raise SyntaxError("DSL is invalid")
 
+    global start_tile_location
+    start_tile_location = None
+    world_map.clear()
+
     dsl_lines = world_dsl.splitlines()
     dsl_lines = [x for x in dsl_lines if x]
 
@@ -194,7 +208,6 @@ def parse_world_dsl():
         for x, dsl_cell in enumerate(dsl_cells):
             tile_type = tile_type_dict[dsl_cell]
             if tile_type == StartTile:
-                global start_tile_location
                 start_tile_location = x, y
             row.append(tile_type(x, y) if tile_type else None)
 
@@ -208,6 +221,67 @@ def tile_at(x, y):
         return world_map[y][x]
     except IndexError:
         return None
+
+
+# Each value is the (dx, dy) step for moving in that direction.
+DIRECTIONS = {"n": (0, -1),
+              "s": (0, 1),
+              "e": (1, 0),
+              "w": (-1, 0)}
+
+
+def build_adjacency():
+    """Return the directed adjacency list of the parsed map.
+
+    Maps every tile coordinate to {hotkey: neighbour_coordinate} for
+    directions that lead to a real tile. Empty DSL cells and positions
+    outside the grid are simply not part of the graph.
+    """
+    adjacency = {}
+    for row in world_map:
+        for tile in row:
+            if tile is None:
+                continue
+            neighbours = {}
+            for direction, (dx, dy) in DIRECTIONS.items():
+                neighbour = tile_at(tile.x + dx, tile.y + dy)
+                if neighbour is not None:
+                    neighbours[direction] = (neighbour.x, neighbour.y)
+            adjacency[(tile.x, tile.y)] = neighbours
+    return adjacency
+
+
+def reachable_from(start):
+    """Depth-first traversal of the adjacency list starting at start."""
+    adjacency = build_adjacency()
+    seen = set()
+    stack = [start]
+    while stack:
+        node = stack.pop()
+        if node in seen:
+            continue
+        seen.add(node)
+        stack.extend(adjacency.get(node, {}).values())
+    return seen
+
+
+def claimed_gold_tiles():
+    return [(tile.x, tile.y)
+            for row in world_map for tile in row
+            if isinstance(tile, FindGoldTile) and tile.gold_claimed]
+
+
+def restore_claimed_gold(coords):
+    if not isinstance(coords, list):
+        return
+    for entry in coords:
+        try:
+            x, y = entry
+            tile = tile_at(int(x), int(y))
+        except (TypeError, ValueError):
+            continue
+        if isinstance(tile, FindGoldTile):
+            tile.gold_claimed = True
 
 
 world_dsl = """

@@ -75,3 +75,17 @@ class HealingPotion(Consumable):
         self.name = "Healing Potion"
         self.healing_value = 50
         self.value = 60
+
+
+# Registry used to serialize and restore the player's inventory.
+# Saves store the class name; a name missing from this registry (for
+# example an item coming from a newer or tampered save) is skipped on load.
+ITEM_TYPES = {
+    "Rock": Rock,
+    "Dagger": Dagger,
+    "RustySword": RustySword,
+    "Mazeltov": Mazeltov,
+    "Crossbow": Crossbow,
+    "CrustyBread": CrustyBread,
+    "HealingPotion": HealingPotion,
+}
