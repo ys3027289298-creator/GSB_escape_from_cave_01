@@ -5,9 +5,35 @@
 __author__ = "lakshaytalkstocomputer"
 
 
+import json
+import os
+
 import world
 from player import Player
 from collections import OrderedDict
+
+
+SAVE_FILE = "savegame.json"
+
+
+def save_game(player, path=SAVE_FILE):
+    data = {
+        "player": player.to_dict(),
+        "claimed_gold": [list(coord) for coord in world.claimed_gold_tiles()],
+    }
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_game(path=SAVE_FILE):
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    return data
 
 
 def play():
@@ -15,15 +41,23 @@ def play():
     print()
     print("Escape from Cave Terror!")
     world.parse_world_dsl()
-    player = Player()
+    save_data = load_game()
+    if save_data:
+        player = Player.from_dict(save_data.get("player"))
+        world.restore_claimed_gold(save_data.get("claimed_gold"))
+    else:
+        player = Player()
     while player.is_alive() and not player.victory:
         room = world.tile_at(player.x, player.y)
         print(room.intro_text())
         room.modify_player(player)
         if player.is_alive() and not player.victory:
             choose_action(room, player)
+            save_game(player)
         elif not player.is_alive():
             print("Your journey has come to an early end! ")
+    if os.path.exists(SAVE_FILE):
+        os.remove(SAVE_FILE)
 
 
 def get_available_actions(room, player):
@@ -68,4 +102,5 @@ def choose_action(room, player):
             print("Invalid action!")
 
 
-play()
+if __name__ == "__main__":
+    play()

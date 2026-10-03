@@ -8,6 +8,13 @@ import items
 import world
 
 
+def _as_int(value, default):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 class Player:
     def __init__(self):
         self.inventory = [items.Rock(),
@@ -46,8 +53,9 @@ class Player:
         return best_weapon
 
     def move(self, dx, dy):
-        self.x += dx
-        self.y += dy
+        if world.tile_at(self.x + dx, self.y + dy):
+            self.x += dx
+            self.y += dy
 
     def move_north(self):
         self.move(dx=0, dy=-1)
@@ -97,4 +105,42 @@ class Player:
     def trade(self):
         room = world.tile_at(self.x, self.y)
         room.check_if_trade(self)
+
+    def to_dict(self):
+        return {
+            "x": self.x,
+            "y": self.y,
+            "hp": self.hp,
+            "gold": self.gold,
+            "victory": self.victory,
+            "inventory": [type(item).__name__ for item in self.inventory],
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        # A save file may be missing fields or contain fields from a
+        # different version. Fall back to the defaults a new player gets
+        # instead of crashing.
+        if not isinstance(data, dict):
+            data = {}
+        player = cls.__new__(cls)
+        start = world.start_tile_location or (0, 0)
+        player.x = _as_int(data.get("x"), start[0])
+        player.y = _as_int(data.get("y"), start[1])
+        player.hp = _as_int(data.get("hp"), 100)
+        player.gold = _as_int(data.get("gold"), 5)
+        player.victory = bool(data.get("victory", False))
+        if isinstance(data.get("inventory"), list):
+            player.inventory = []
+            for name in data["inventory"]:
+                item_class = items.ITEM_TYPES.get(name) if isinstance(name, str) else None
+                if item_class is not None:
+                    player.inventory.append(item_class())
+        else:
+            player.inventory = [items.Rock(),
+                                items.Dagger(),
+                                items.CrustyBread()]
+        if world.tile_at(player.x, player.y) is None:
+            player.x, player.y = start
+        return player
 
